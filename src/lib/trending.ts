@@ -22,9 +22,10 @@ export async function getTrendingStocks(): Promise<TrendingStock[]> {
 
   const stocks: TrendingStock[] = results
     .map((r, i) => {
-      if (r.status !== "fulfilled") return null;
+      if (r.status !== "fulfilled" || !r.value) return null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q: any = r.value;
+      if (!q.regularMarketPrice) return null;
       const changePercent = q.regularMarketChangePercent ?? 0;
       const volume = q.regularMarketVolume ?? 0;
       const avgVolume = q.averageDailyVolume3Month ?? 1;
