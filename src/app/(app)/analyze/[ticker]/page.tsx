@@ -9,7 +9,7 @@ import {
   Zap,
   Star,
 } from "lucide-react";
-import { getMockAnalysis } from "@/lib/mock-data/stocks";
+import { fetchStockAnalysis } from "@/lib/market-data";
 import { RiskScoreCard } from "@/components/analysis/RiskScoreCard";
 import { PriceChart } from "@/components/analysis/PriceChart";
 import { EmotionalWarnings } from "@/components/analysis/EmotionalWarnings";
@@ -17,8 +17,10 @@ import { SocialHypeCard } from "@/components/analysis/SocialHypeCard";
 import { InsiderActivity } from "@/components/analysis/InsiderActivity";
 import { TechnicalCard } from "@/components/analysis/TechnicalCard";
 import { RiskBadge } from "@/components/shared/RiskBadge";
-import { AnalysisSkeleton } from "@/components/shared/LoadingSkeleton";
 import { cn, formatCurrency, formatPercent, formatVolume, getRiskBg } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AnalyzePage({
   params,
@@ -26,7 +28,24 @@ export default async function AnalyzePage({
   params: Promise<{ ticker: string }>;
 }) {
   const { ticker } = await params;
-  const analysis = getMockAnalysis(ticker.toUpperCase());
+
+  let analysis;
+  try {
+    analysis = await fetchStockAnalysis(ticker.toUpperCase());
+  } catch {
+    return (
+      <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-24 text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h2 className="text-xl font-bold mb-2">Ticker not found</h2>
+        <p className="text-muted-foreground text-sm mb-6">
+          &quot;{ticker.toUpperCase()}&quot; could not be found on Yahoo Finance. Check the symbol and try again.
+        </p>
+        <Link href="/dashboard" className="text-primary hover:underline text-sm flex items-center gap-1">
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        </Link>
+      </div>
+    );
+  }
   const { quote, riskScore, aiSummary, volatilityAnalysis, reverseSplits, dilutionEvents, news, socialSignals, insiderTransactions, technicals, priceHistory, shortInterest, emotionalWarnings, catalysts } = analysis;
 
   const isUp = quote.changePercent >= 0;

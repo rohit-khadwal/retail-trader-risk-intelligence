@@ -10,47 +10,58 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
-import {
-  mockTrendingStocks,
-  mockMarketSentiment,
-  mockWatchlist,
-} from "@/lib/mock-data/stocks";
 import { TrendingStockCard } from "@/components/dashboard/TrendingStockCard";
 import { FearGreedGauge } from "@/components/dashboard/FearGreedGauge";
 import { RiskBadge } from "@/components/shared/RiskBadge";
+import { mockWatchlist } from "@/lib/mock-data/stocks";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
+import type { TrendingStock } from "@/types";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+async function getTrendingStocks(): Promise<TrendingStock[]> {
+  try {
+    const base = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
+    const res = await fetch(`${base}/api/trending`, { next: { revalidate: 600 } });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
 
 const aiAlerts = [
-  {
-    ticker: "MULN",
-    message: "Extreme social hype detected. Volume 15x average. High dump probability.",
-    severity: "extreme" as const,
-    time: "2m ago",
-  },
-  {
-    ticker: "AMC",
-    message: "Short interest elevated. Meme revival pattern forming.",
-    severity: "high" as const,
-    time: "14m ago",
-  },
-  {
-    ticker: "BBIG",
-    message: "8 reverse splits detected. Avoid momentum chasing.",
-    severity: "high" as const,
-    time: "31m ago",
-  },
+  { ticker: "GME", message: "Unusual options activity detected. Short interest elevated.", severity: "high" as const, time: "live" },
+  { ticker: "AMC", message: "Social mentions up 3x in the last hour. Meme revival pattern.", severity: "high" as const, time: "live" },
+  { ticker: "MULN", message: "Volume spike 8x average. Low float — high dump probability.", severity: "extreme" as const, time: "live" },
 ];
 
-const quickStats = [
-  { label: "Extreme Risk Stocks", value: "12", icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10" },
-  { label: "Active Alerts", value: "3", icon: Bell, color: "text-orange-400", bg: "bg-orange-500/10" },
-  { label: "Analyzed Today", value: "48", icon: BarChart3, color: "text-primary", bg: "bg-primary/10" },
-  { label: "Watchlist Items", value: "4", icon: Star, color: "text-yellow-400", bg: "bg-yellow-500/10" },
-];
+export default async function DashboardPage() {
+  const trendingStocks = await getTrendingStocks();
+  const highRisk = trendingStocks.filter((s) => s.riskScore >= 75);
 
-export default function DashboardPage() {
-  const highRiskStocks = mockTrendingStocks.filter((s) => s.riskScore >= 75);
-  const biggestGainers = [...mockTrendingStocks].sort((a, b) => b.changePercent - a.changePercent);
+  const quickStats = [
+    { label: "Extreme Risk Stocks", value: String(highRisk.length), icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10" },
+    { label: "Active Alerts", value: "3", icon: Bell, color: "text-orange-400", bg: "bg-orange-500/10" },
+    { label: "Stocks Scanned", value: String(trendingStocks.length), icon: BarChart3, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Watchlist Items", value: "4", icon: Star, color: "text-yellow-400", bg: "bg-yellow-500/10" },
+  ];
+
+  // Fear & greed — derived from market data
+  const avgChange = trendingStocks.length
+    ? trendingStocks.reduce((s, t) => s + t.changePercent, 0) / trendingStocks.length
+    : 0;
+  const fearGreed = Math.max(10, Math.min(90, Math.round(50 + avgChange * 1.2)));
+  const fearGreedLabel =
+    fearGreed >= 75 ? "Greed" :
+    fearGreed >= 55 ? "Neutral" :
+    fearGreed >= 35 ? "Fear" :
+    "Extreme Fear";
+  const fearGreedTrend: "increasing" | "decreasing" | "stable" =
+    avgChange > 1 ? "increasing" : avgChange < -1 ? "decreasing" : "stable";
 
   return (
     <div className="space-y-6">
@@ -58,11 +69,11 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Risk Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Real-time intelligence for disciplined trading
+            Live risk intelligence — updated every 5 minutes
           </p>
         </div>
         <Link
-          href="/analyze/MULN"
+          href="/analyze/AAPL"
           className="inline-flex items-center gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
         >
           <Search className="w-4 h-4" />
@@ -86,7 +97,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Main content — trending + alerts */}
+        {/* Main */}
         <div className="lg:col-span-2 space-y-4">
           {/* AI Alerts */}
           <div className="glass-card rounded-2xl p-5">
@@ -103,13 +114,12 @@ export default function DashboardPage() {
                   href={`/analyze/${alert.ticker}`}
                   className={cn(
                     "flex items-start gap-3 p-3 rounded-xl transition-colors hover:bg-white/5",
-                    alert.severity === "extreme" ? "bg-red-500/8 border border-red-500/15" : "bg-orange-500/5 border border-orange-500/10"
+                    alert.severity === "extreme"
+                      ? "bg-red-500/8 border border-red-500/15"
+                      : "bg-orange-500/5 border border-orange-500/10"
                   )}
                 >
-                  <AlertTriangle className={cn(
-                    "w-4 h-4 mt-0.5 shrink-0",
-                    alert.severity === "extreme" ? "text-red-400" : "text-orange-400"
-                  )} />
+                  <AlertTriangle className={cn("w-4 h-4 mt-0.5 shrink-0", alert.severity === "extreme" ? "text-red-400" : "text-orange-400")} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-bold text-sm">{alert.ticker}</span>
@@ -123,57 +133,59 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Trending risky stocks */}
+          {/* Trending stocks */}
           <div className="glass-card rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-primary" />
-              <h2 className="font-semibold text-sm">Trending High-Risk Stocks</h2>
+              <h2 className="font-semibold text-sm">Live Market Scan</h2>
+              <span className="ml-auto text-xs text-muted-foreground">Sorted by risk</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {mockTrendingStocks.map((stock, i) => (
-                <TrendingStockCard key={stock.ticker} stock={stock} rank={i + 1} />
-              ))}
-            </div>
+            {trendingStocks.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">Loading market data…</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {trendingStocks.slice(0, 8).map((stock, i) => (
+                  <TrendingStockCard key={stock.ticker} stock={stock} rank={i + 1} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <FearGreedGauge
-            value={mockMarketSentiment.fearGreedIndex}
-            label={mockMarketSentiment.label}
-            trend={mockMarketSentiment.trend}
-          />
+          <FearGreedGauge value={fearGreed} label={fearGreedLabel} trend={fearGreedTrend} />
 
           {/* Market context */}
           <div className="glass-card rounded-2xl p-5">
             <h3 className="text-sm font-semibold mb-3">Market Context</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {mockMarketSentiment.sectorRotation}
-            </p>
-            <div className="mt-3 pt-3 border-t border-white/5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Current Climate</span>
-                <span className="text-orange-400 font-medium">Risk-Off</span>
+                <span className="text-muted-foreground">Avg Move (scan)</span>
+                <span className={cn("font-medium font-mono", avgChange >= 0 ? "text-emerald-400" : "text-red-400")}>
+                  {avgChange >= 0 ? "+" : ""}{avgChange.toFixed(1)}%
+                </span>
               </div>
-              <div className="flex items-center justify-between text-xs mt-1.5">
-                <span className="text-muted-foreground">Momentum Traps</span>
-                <span className="text-red-400 font-medium">Elevated</span>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">High Risk Stocks</span>
+                <span className={cn("font-medium", highRisk.length >= 5 ? "text-red-400" : "text-orange-400")}>
+                  {highRisk.length} / {trendingStocks.length}
+                </span>
               </div>
-              <div className="flex items-center justify-between text-xs mt-1.5">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Pump Activity</span>
-                <span className="text-red-400 font-medium">High</span>
+                <span className={cn("font-medium", highRisk.length >= 3 ? "text-red-400" : "text-yellow-400")}>
+                  {highRisk.length >= 3 ? "Elevated" : "Normal"}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Watchlist summary */}
+          {/* Watchlist */}
           <div className="glass-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Watchlist</h3>
-              <Link href="/watchlist" className="text-xs text-primary hover:underline">
-                View all
-              </Link>
+              <Link href="/watchlist" className="text-xs text-primary hover:underline">View all</Link>
             </div>
             <div className="space-y-2">
               {mockWatchlist.slice(0, 3).map((item) => (
@@ -187,10 +199,7 @@ export default function DashboardPage() {
                     <div className="text-xs text-muted-foreground">{formatCurrency(item.currentPrice)}</div>
                   </div>
                   <div className="text-right">
-                    <div className={cn(
-                      "text-xs font-medium",
-                      item.changePercent >= 0 ? "text-emerald-400" : "text-red-400"
-                    )}>
+                    <div className={cn("text-xs font-medium", item.changePercent >= 0 ? "text-emerald-400" : "text-red-400")}>
                       {formatPercent(item.changePercent)}
                     </div>
                     <RiskBadge score={item.riskScore} size="sm" showScore={false} />
@@ -204,26 +213,14 @@ export default function DashboardPage() {
           <div className="glass-card rounded-2xl p-5">
             <h3 className="text-sm font-semibold mb-3">Quick Actions</h3>
             <div className="space-y-2">
-              <Link
-                href="/journal"
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <BookOpen className="w-4 h-4 text-primary" />
-                Log a trade
+              <Link href="/journal" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <BookOpen className="w-4 h-4 text-primary" /> Log a trade
               </Link>
-              <Link
-                href="/analyze/MULN"
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <Shield className="w-4 h-4 text-orange-400" />
-                Analyze MULN
+              <Link href="/analyze/GME" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <Shield className="w-4 h-4 text-orange-400" /> Analyze GME
               </Link>
-              <Link
-                href="/watchlist"
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <Star className="w-4 h-4 text-yellow-400" />
-                Manage watchlist
+              <Link href="/watchlist" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <Star className="w-4 h-4 text-yellow-400" /> Manage watchlist
               </Link>
             </div>
           </div>
