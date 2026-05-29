@@ -1,4 +1,6 @@
-import yahooFinance from "yahoo-finance2";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const YahooFinance = require("yahoo-finance2").default;
+const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 import type { StockAnalysis, PricePoint, NewsItem, RiskScore } from "@/types";
 import { computeRiskScore } from "./risk-engine";
 
@@ -7,8 +9,8 @@ export async function fetchStockAnalysis(ticker: string): Promise<StockAnalysis>
   const upper = ticker.toUpperCase();
 
   const [quote, summary, history, newsResult] = await Promise.allSettled([
-    yahooFinance.quote(upper),
-    yahooFinance.quoteSummary(upper, {
+    yf.quote(upper),
+    yf.quoteSummary(upper, {
       modules: [
         "summaryDetail",
         "defaultKeyStatistics",
@@ -17,11 +19,11 @@ export async function fetchStockAnalysis(ticker: string): Promise<StockAnalysis>
         "calendarEvents",
       ],
     }),
-    yahooFinance.chart(upper, {
+    yf.chart(upper, {
       period1: (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d; })(),
       interval: "1d",
     }),
-    yahooFinance.search(upper, { newsCount: 6, quotesCount: 0 }),
+    yf.search(upper, { newsCount: 6, quotesCount: 0 }),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
