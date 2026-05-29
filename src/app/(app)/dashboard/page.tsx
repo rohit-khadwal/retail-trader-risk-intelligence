@@ -14,24 +14,11 @@ import { TrendingStockCard } from "@/components/dashboard/TrendingStockCard";
 import { FearGreedGauge } from "@/components/dashboard/FearGreedGauge";
 import { RiskBadge } from "@/components/shared/RiskBadge";
 import { mockWatchlist } from "@/lib/mock-data/stocks";
+import { getTrendingStocks } from "@/lib/trending";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
-import type { TrendingStock } from "@/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-async function getTrendingStocks(): Promise<TrendingStock[]> {
-  try {
-    const base = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-    const res = await fetch(`${base}/api/trending`, { next: { revalidate: 600 } });
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
-    return [];
-  }
-}
 
 const aiAlerts = [
   { ticker: "GME", message: "Unusual options activity detected. Short interest elevated.", severity: "high" as const, time: "live" },
