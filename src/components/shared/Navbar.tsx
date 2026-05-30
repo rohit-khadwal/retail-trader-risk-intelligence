@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   BarChart3,
   BookOpen,
+  Briefcase,
   Home,
   Menu,
   Search,
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/portfolio", label: "Portfolio", icon: Briefcase },
   { href: "/watchlist", label: "Watchlist", icon: Star },
   { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -145,11 +147,11 @@ export function Navbar() {
             </Link>
           ))}
           <Link
-            href="/analyze/AAPL"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-muted-foreground"
+            href="/portfolio"
+            className={cn("flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors", pathname.startsWith("/portfolio") ? "text-primary" : "text-muted-foreground")}
           >
             <BarChart3 className="w-5 h-5" />
-            <span className="text-xs">Analyze</span>
+            <span className="text-xs">Portfolio</span>
           </Link>
         </div>
       </div>

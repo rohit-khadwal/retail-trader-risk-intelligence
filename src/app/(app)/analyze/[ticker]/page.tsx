@@ -7,7 +7,6 @@ import {
   History,
   Newspaper,
   Zap,
-  Star,
 } from "lucide-react";
 import { fetchStockAnalysis } from "@/lib/market-data";
 import { RiskScoreCard } from "@/components/analysis/RiskScoreCard";
@@ -17,6 +16,7 @@ import { SocialHypeCard } from "@/components/analysis/SocialHypeCard";
 import { InsiderActivity } from "@/components/analysis/InsiderActivity";
 import { TechnicalCard } from "@/components/analysis/TechnicalCard";
 import { RiskBadge } from "@/components/shared/RiskBadge";
+import { WatchlistButton } from "@/components/shared/WatchlistButton";
 import { cn, formatCurrency, formatPercent, formatVolume, getRiskBg } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -64,9 +64,7 @@ export default async function AnalyzePage({
           </div>
           <p className="text-sm text-muted-foreground truncate">{quote.name}</p>
         </div>
-        <button className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-muted-foreground hover:text-yellow-400">
-          <Star className="w-4 h-4" />
-        </button>
+        <WatchlistButton ticker={quote.ticker} name={quote.name} />
       </div>
 
       {/* Price header */}
