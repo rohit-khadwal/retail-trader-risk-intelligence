@@ -4,7 +4,6 @@ import {
   BarChart3,
   Bell,
   BookOpen,
-  Search,
   Shield,
   Star,
   TrendingUp,
@@ -13,6 +12,7 @@ import {
 import { TrendingStockCard } from "@/components/dashboard/TrendingStockCard";
 import { FearGreedGauge } from "@/components/dashboard/FearGreedGauge";
 import { RiskBadge } from "@/components/shared/RiskBadge";
+import { StockSearchBar } from "@/components/shared/StockSearchBar";
 import { mockWatchlist } from "@/lib/mock-data/stocks";
 import { getTrendingStocks } from "@/lib/trending";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
@@ -52,21 +52,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Risk Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Live risk intelligence — updated every 5 minutes
-          </p>
-        </div>
-        <Link
-          href="/analyze/AAPL"
-          className="inline-flex items-center gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
-        >
-          <Search className="w-4 h-4" />
-          Analyze Stock
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold">Risk Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Live risk intelligence — updated every 5 minutes
+        </p>
       </div>
+
+      <StockSearchBar />
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
