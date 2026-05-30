@@ -15,6 +15,9 @@ import { EmotionalWarnings } from "@/components/analysis/EmotionalWarnings";
 import { SocialHypeCard } from "@/components/analysis/SocialHypeCard";
 import { InsiderActivity } from "@/components/analysis/InsiderActivity";
 import { TechnicalCard } from "@/components/analysis/TechnicalCard";
+import { QuickSnapshot } from "@/components/analysis/QuickSnapshot";
+import { FundamentalsCard } from "@/components/analysis/FundamentalsCard";
+import { AnalystCard } from "@/components/analysis/AnalystCard";
 import { RiskBadge } from "@/components/shared/RiskBadge";
 import { WatchlistButton } from "@/components/shared/WatchlistButton";
 import { cn, formatCurrency, formatPercent, formatVolume, getRiskBg } from "@/lib/utils";
@@ -47,6 +50,8 @@ export default async function AnalyzePage({
     );
   }
   const { quote, riskScore, aiSummary, volatilityAnalysis, reverseSplits, dilutionEvents, news, socialSignals, insiderTransactions, technicals, priceHistory, shortInterest, emotionalWarnings, catalysts } = analysis;
+  const fundamentals = analysis.fundamentals;
+  const analyst = analysis.analyst;
 
   const isUp = quote.changePercent >= 0;
 
@@ -67,34 +72,27 @@ export default async function AnalyzePage({
         <WatchlistButton ticker={quote.ticker} name={quote.name} />
       </div>
 
-      {/* Price header */}
-      <div className="glass-card rounded-2xl p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold font-mono">{formatCurrency(quote.price)}</span>
-              <span className={cn("text-lg font-semibold", isUp ? "text-emerald-400" : "text-red-400")}>
-                {formatPercent(quote.changePercent)}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
-              <span>Vol: <strong className="text-foreground font-mono">{formatVolume(quote.volume)}</strong></span>
-              <span>Avg: <strong className="text-foreground font-mono">{formatVolume(quote.avgVolume)}</strong></span>
-              <span>Float: <strong className="text-foreground font-mono">{formatVolume(quote.float)}</strong></span>
-              <span>MCap: <strong className="text-foreground font-mono">{formatCurrency(quote.marketCap)}</strong></span>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">Vol/Avg Ratio</div>
-            <div className={cn("text-xl font-bold font-mono", quote.volume / quote.avgVolume > 5 ? "text-red-400" : "text-foreground")}>
-              {(quote.volume / quote.avgVolume).toFixed(1)}x
-            </div>
-            {quote.volume / quote.avgVolume > 3 && (
-              <div className="text-xs text-orange-400">Abnormal volume</div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Quick Investor Snapshot */}
+      <QuickSnapshot
+        price={quote.price}
+        change={quote.change}
+        changePercent={quote.changePercent}
+        marketCap={quote.marketCap}
+        peRatio={fundamentals?.peRatio ?? null}
+        forwardPE={fundamentals?.forwardPE ?? null}
+        eps={fundamentals?.eps ?? null}
+        revenue={fundamentals?.revenue ?? null}
+        profitMargin={fundamentals?.profitMargin ?? null}
+        beta={fundamentals?.beta ?? null}
+        week52High={fundamentals?.week52High ?? null}
+        week52Low={fundamentals?.week52Low ?? null}
+        volume={quote.volume}
+        avgVolume={quote.avgVolume}
+        dividendYield={fundamentals?.dividendYield ?? null}
+        analystRating={analyst?.recommendationKey ?? null}
+        priceTarget={analyst?.targetMeanPrice ?? null}
+        isProfit={fundamentals?.isProfit ?? false}
+      />
 
       {/* AI Summary */}
       <div className={cn("glass-card rounded-2xl p-5 border", getRiskBg(riskScore.level).replace("text-", "border-").replace("-400", "-500/20").replace("bg-", "border-"))}>
@@ -120,7 +118,7 @@ export default async function AnalyzePage({
       </div>
 
       {/* Chart */}
-      <Suspense fallback={<div className="glass-card rounded-2xl h-64 animate-pulse" />}>
+      <Suspense fallback={<div className="glass-card rounded-2xl h-72 animate-pulse" />}>
         <PriceChart
           data={priceHistory}
           ticker={quote.ticker}
@@ -128,6 +126,12 @@ export default async function AnalyzePage({
           changePercent={quote.changePercent}
         />
       </Suspense>
+
+      {/* Fundamentals */}
+      {fundamentals && <FundamentalsCard {...fundamentals} />}
+
+      {/* Analyst Ratings */}
+      {analyst && <AnalystCard {...analyst} currentPrice={quote.price} />}
 
       {/* Risk Score */}
       <RiskScoreCard riskScore={riskScore} />

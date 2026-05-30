@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const YahooFinance = require("yahoo-finance2").default;
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
-import type { StockAnalysis, PricePoint, NewsItem, RiskScore } from "@/types";
+import type { StockAnalysis, PricePoint, NewsItem, RiskScore, FundamentalsData, AnalystData } from "@/types";
 import { computeRiskScore } from "./risk-engine";
 
 
@@ -17,6 +17,9 @@ export async function fetchStockAnalysis(ticker: string): Promise<StockAnalysis>
         "assetProfile",
         "insiderTransactions",
         "calendarEvents",
+        "financialData",
+        "earnings",
+        "recommendationTrend",
       ],
     }),
     yf.chart(upper, {
@@ -121,6 +124,70 @@ export async function fetchStockAnalysis(ticker: string): Promise<StockAnalysis>
     shortPercentOfFloat,
   });
 
+  // ── Fundamentals extraction ─────────────────────────────────────
+  const fd = s?.financialData ?? {};
+  const ks = s?.defaultKeyStatistics ?? {};
+  const sd = s?.summaryDetail ?? {};
+
+  const revenue: number | null = fd.totalRevenue ?? null;
+  const revenueGrowth: number | null = fd.revenueGrowth != null ? fd.revenueGrowth * 100 : null;
+  const profitMargin: number | null = fd.profitMargins != null ? fd.profitMargins * 100 : null;
+  const operatingMargin: number | null = fd.operatingMargins != null ? fd.operatingMargins * 100 : null;
+  const grossMargin: number | null = fd.grossMargins != null ? fd.grossMargins * 100 : null;
+  const returnOnEquity: number | null = fd.returnOnEquity != null ? fd.returnOnEquity * 100 : null;
+  const returnOnAssets: number | null = fd.returnOnAssets != null ? fd.returnOnAssets * 100 : null;
+  const freeCashFlow: number | null = fd.freeCashflow ?? null;
+  const debtToEquity: number | null = fd.debtToEquity ?? null;
+  const currentRatio: number | null = fd.currentRatio ?? null;
+  const netIncome: number | null = ks.netIncomeToCommon ?? null;
+  const isProfit = netIncome != null ? netIncome > 0 : (profitMargin != null ? profitMargin > 0 : false);
+
+  const peRatio: number | null = sd.trailingPE ?? q.trailingPE ?? null;
+  const forwardPE: number | null = ks.forwardPE ?? sd.forwardPE ?? null;
+  const enterpriseValue: number | null = ks.enterpriseValue ?? null;
+  const priceToBook: number | null = ks.priceToBook ?? null;
+  const eps: number | null = ks.trailingEps ?? null;
+  const forwardEps: number | null = ks.forwardEps ?? null;
+  const beta: number | null = ks.beta ?? sd.beta ?? null;
+  const dividendYield: number | null = sd.dividendYield != null ? sd.dividendYield * 100 : null;
+  const week52High: number | null = sd.fiftyTwoWeekHigh ?? q.fiftyTwoWeekHigh ?? null;
+  const week52Low: number | null = sd.fiftyTwoWeekLow ?? q.fiftyTwoWeekLow ?? null;
+  const institutionalOwnership: number | null = ks.heldPercentInstitutions != null ? ks.heldPercentInstitutions * 100 : null;
+  const insiderOwnership: number | null = ks.heldPercentInsiders != null ? ks.heldPercentInsiders * 100 : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const quarterlyEarnings = ((s?.earnings?.earningsChart?.quarterly ?? []) as any[]).map((q: any) => ({
+    date: q.date ?? "",
+    actual: q.actual?.raw ?? q.actual ?? null,
+    estimate: q.estimate?.raw ?? q.estimate ?? null,
+  }));
+
+  const fundamentals: FundamentalsData = {
+    peRatio, forwardPE, enterpriseValue, priceToBook,
+    eps, forwardEps, revenue, revenueGrowth, netIncome, isProfit,
+    profitMargin, operatingMargin, grossMargin, returnOnEquity, returnOnAssets,
+    debtToEquity, freeCashFlow, currentRatio,
+    beta, dividendYield, week52High, week52Low,
+    institutionalOwnership, insiderOwnership, quarterlyEarnings,
+  };
+
+  // ── Analyst extraction ──────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trend0: any = s?.recommendationTrend?.trend?.[0] ?? {};
+  const analystData: AnalystData = {
+    recommendationKey: fd.recommendationKey ?? null,
+    recommendationMean: fd.recommendationMean ?? null,
+    numberOfAnalysts: fd.numberOfAnalystOpinions ?? 0,
+    targetMeanPrice: fd.targetMeanPrice ?? null,
+    targetHighPrice: fd.targetHighPrice ?? null,
+    targetLowPrice: fd.targetLowPrice ?? null,
+    strongBuy: trend0.strongBuy ?? 0,
+    buy: trend0.buy ?? 0,
+    hold: trend0.hold ?? 0,
+    sell: trend0.sell ?? 0,
+    strongSell: trend0.strongSell ?? 0,
+  };
+
   return {
     quote: {
       ticker: upper,
@@ -169,6 +236,8 @@ export async function fetchStockAnalysis(ticker: string): Promise<StockAnalysis>
     emotionalWarnings,
     catalysts: [],
     analysisTimestamp: new Date().toISOString(),
+    fundamentals,
+    analyst: analystData,
   };
 }
 

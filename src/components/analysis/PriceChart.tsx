@@ -1,113 +1,237 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
+  ComposedChart, Area, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { Loader2 } from "lucide-react";
 import type { PricePoint } from "@/types";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatVolume } from "@/lib/utils";
 
-interface PriceChartProps {
-  data: PricePoint[];
-  ticker: string;
-  currentPrice: number;
-  changePercent: number;
-}
+type TF = "1D" | "5D" | "1M" | "3M" | "6M" | "1Y" | "5Y";
+const TF_PERIOD: Record<TF, string> = {
+  "1D": "1d", "5D": "5d", "1M": "1m", "3M": "3m",
+  "6M": "6m", "1Y": "1y", "5Y": "5y",
+};
 
-const RANGES = ["1W", "1M", "3M"] as const;
-
-function filterByRange(data: PricePoint[], range: (typeof RANGES)[number]) {
-  const days = range === "1W" ? 7 : range === "1M" ? 30 : 90;
-  return data.slice(-days);
+function fmtAxis(iso: string, tf: TF): string {
+  const d = new Date(iso);
+  if (tf === "1D") return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (tf === "5D") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (tf === "1M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (tf === "5Y") return d.toLocaleDateString([], { month: "short", year: "2-digit" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CustomTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, tf }: { active?: boolean; payload?: any[]; tf: TF }) {
   if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  const date = new Date(d.date);
+  const dateStr = (tf === "1D" || tf === "5D")
+    ? date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
   return (
-    <div className="glass-card rounded-xl px-3 py-2 text-xs">
-      <p className="text-muted-foreground mb-1">{label}</p>
-      <p className="font-mono font-semibold">{formatCurrency(payload[0]?.value)}</p>
+    <div className="bg-[#0f1117] border border-white/10 rounded-xl p-3 text-xs shadow-xl min-w-[160px]">
+      <div className="text-muted-foreground mb-2 font-medium">{dateStr}</div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        <span className="text-muted-foreground">Open</span>
+        <span className="font-mono text-right">{formatCurrency(d.open)}</span>
+        <span className="text-emerald-400">High</span>
+        <span className="font-mono text-right text-emerald-400">{formatCurrency(d.high)}</span>
+        <span className="text-red-400">Low</span>
+        <span className="font-mono text-right text-red-400">{formatCurrency(d.low)}</span>
+        <span className="text-foreground font-semibold">Close</span>
+        <span className="font-mono text-right font-semibold">{formatCurrency(d.close)}</span>
+        {d.volume > 0 && (
+          <>
+            <span className="text-muted-foreground">Volume</span>
+            <span className="font-mono text-right">{formatVolume(d.volume)}</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-export function PriceChart({ data, ticker, currentPrice, changePercent }: PriceChartProps) {
-  const [range, setRange] = useState<(typeof RANGES)[number]>("1M");
-  const filtered = filterByRange(data, range);
-  const isPositive = changePercent >= 0;
-  const color = isPositive ? "#4ade80" : "#f87171";
+export function PriceChart({
+  data: initialData,
+  ticker,
+  currentPrice,
+  changePercent,
+}: {
+  data: PricePoint[];
+  ticker: string;
+  currentPrice: number;
+  changePercent: number;
+}) {
+  const [tf, setTf] = useState<TF>("3M");
+  const [chartData, setChartData] = useState<PricePoint[]>(initialData);
+  const [loading, setLoading] = useState(false);
+
+  const loadTf = useCallback(async (newTf: TF) => {
+    setTf(newTf);
+    if (newTf === "3M") { setChartData(initialData); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/chart/${ticker}?period=${TF_PERIOD[newTf]}`);
+      const d: PricePoint[] = await res.json();
+      setChartData(d.length ? d : initialData);
+    } catch { setChartData(initialData); }
+    finally { setLoading(false); }
+  }, [ticker, initialData]);
+
+  const prices = chartData.map((d) => d.close).filter(Boolean);
+  const minP = prices.length ? Math.min(...prices) : 0;
+  const maxP = prices.length ? Math.max(...prices) : 0;
+  const pad = (maxP - minP) * 0.08 || maxP * 0.02;
+  const priceDomain: [number, number] = [minP - pad, maxP + pad];
+
+  const volumes = chartData.map((d) => d.volume).filter(Boolean);
+  const maxVol = volumes.length ? Math.max(...volumes) : 1;
+  const volDomain: [number, number] = [0, maxVol * 5];
+
+  const first = chartData[0]?.close ?? currentPrice;
+  const last = chartData[chartData.length - 1]?.close ?? currentPrice;
+  const isUp = last >= first;
+  const stroke = isUp ? "#34d399" : "#f87171";
+  const gradId = isUp ? "pgGreen" : "pgRed";
+
+  const periodChange = first > 0 ? ((last - first) / first) * 100 : changePercent;
+  const dollarChange = last - first;
+
+  const lastBar = chartData[chartData.length - 1];
 
   return (
     <div className="glass-card rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4">
+      {/* Header row */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="font-semibold">{ticker} Price</h3>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="font-mono font-bold text-xl">{formatCurrency(currentPrice)}</span>
-            <span className={cn("text-sm font-medium", isPositive ? "text-emerald-400" : "text-red-400")}>
-              {isPositive ? "+" : ""}{changePercent.toFixed(2)}%
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-mono">{formatCurrency(currentPrice)}</span>
+            <span className={cn("text-sm font-semibold", isUp ? "text-emerald-400" : "text-red-400")}>
+              {dollarChange >= 0 ? "+" : ""}{formatCurrency(Math.abs(dollarChange))}
+              {" "}({periodChange >= 0 ? "+" : ""}{periodChange.toFixed(2)}%)
             </span>
           </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{tf} period · {chartData.length} candles</p>
         </div>
-        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-          {RANGES.map((r) => (
+
+        {/* Timeframe selector */}
+        <div className="flex gap-0.5 bg-white/5 rounded-xl p-1">
+          {(["1D", "5D", "1M", "3M", "6M", "1Y", "5Y"] as TF[]).map((t) => (
             <button
-              key={r}
-              onClick={() => setRange(r)}
+              key={t}
+              onClick={() => loadTf(t)}
               className={cn(
-                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                range === r
-                  ? "bg-white/10 text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                "px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                tf === t ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/8"
               )}
             >
-              {r}
+              {t}
             </button>
           ))}
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={filtered} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-          <defs>
-            <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={color} stopOpacity={0.2} />
-              <stop offset="95%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-          <XAxis
-            dataKey="date"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v) => v.slice(5)}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v) => `$${v.toFixed(0)}`}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Area
-            type="monotone"
-            dataKey="close"
-            stroke={color}
-            strokeWidth={2}
-            fill="url(#priceGrad)"
-            dot={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      {loading ? (
+        <div className="h-72 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="pgGreen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#34d399" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="pgRed" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f87171" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+
+            <XAxis
+              dataKey="date"
+              tickFormatter={(v) => fmtAxis(v, tf)}
+              tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={40}
+            />
+
+            {/* Price Y-axis */}
+            <YAxis
+              yAxisId="p"
+              domain={priceDomain}
+              tickFormatter={(v) => `$${v >= 1 ? v.toFixed(0) : v.toFixed(3)}`}
+              tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }}
+              axisLine={false}
+              tickLine={false}
+              width={56}
+              orientation="right"
+            />
+
+            {/* Volume Y-axis (hidden, just for scaling) */}
+            <YAxis yAxisId="v" domain={volDomain} hide />
+
+            <Tooltip content={<ChartTooltip tf={tf} />} />
+
+            {/* Volume bars */}
+            <Bar
+              yAxisId="v"
+              dataKey="volume"
+              fill="rgba(255,255,255,0.06)"
+              radius={[1, 1, 0, 0]}
+            />
+
+            {/* Price area */}
+            <Area
+              yAxisId="p"
+              type="monotone"
+              dataKey="close"
+              stroke={stroke}
+              strokeWidth={1.5}
+              fill={`url(#${gradId})`}
+              dot={false}
+              activeDot={{ r: 3, fill: stroke, strokeWidth: 0 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* OHLC + volume row */}
+      {lastBar && (
+        <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-white/5 text-center">
+          <div>
+            <div className="text-xs text-muted-foreground">Open</div>
+            <div className="text-xs font-mono font-medium">{formatCurrency(lastBar.open)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">High</div>
+            <div className="text-xs font-mono font-medium text-emerald-400">{formatCurrency(lastBar.high)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Low</div>
+            <div className="text-xs font-mono font-medium text-red-400">{formatCurrency(lastBar.low)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Close</div>
+            <div className="text-xs font-mono font-medium">{formatCurrency(lastBar.close)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Volume</div>
+            <div className="text-xs font-mono font-medium">{formatVolume(lastBar.volume)}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

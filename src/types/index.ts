@@ -115,6 +115,8 @@ export interface StockAnalysis {
   emotionalWarnings: string[];
   catalysts: string[];
   analysisTimestamp: string;
+  fundamentals?: FundamentalsData;
+  analyst?: AnalystData;
 }
 
 export interface WatchlistItem {
@@ -177,6 +179,48 @@ export interface TrendingStock {
   riskLevel: RiskLevel;
   reason: string;
   volume: number;
+}
+
+export interface FundamentalsData {
+  peRatio: number | null;
+  forwardPE: number | null;
+  enterpriseValue: number | null;
+  priceToBook: number | null;
+  eps: number | null;
+  forwardEps: number | null;
+  revenue: number | null;
+  revenueGrowth: number | null;
+  netIncome: number | null;
+  isProfit: boolean;
+  profitMargin: number | null;
+  operatingMargin: number | null;
+  grossMargin: number | null;
+  returnOnEquity: number | null;
+  returnOnAssets: number | null;
+  debtToEquity: number | null;
+  freeCashFlow: number | null;
+  currentRatio: number | null;
+  beta: number | null;
+  dividendYield: number | null;
+  week52High: number | null;
+  week52Low: number | null;
+  institutionalOwnership: number | null;
+  insiderOwnership: number | null;
+  quarterlyEarnings: { date: string; actual: number | null; estimate: number | null }[];
+}
+
+export interface AnalystData {
+  recommendationKey: string | null;
+  recommendationMean: number | null;
+  numberOfAnalysts: number;
+  targetMeanPrice: number | null;
+  targetHighPrice: number | null;
+  targetLowPrice: number | null;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
 }
 
 export interface User {
